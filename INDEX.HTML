@@ -1,0 +1,870 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Paguei! - Controle de Despesas</title>
+    
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Tone.js CDN (para alertas sonoros) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+    
+    <!-- Google Fonts (Inter) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <style>
+        /* Estilos customizados e tema */
+        :root {
+            /* Cores de status (Claro) */
+            --color-paid: 187 247 208; /* green-200 */
+            --color-paid-border: 110 231 183; /* green-400 */
+            --color-late: 254 202 202; /* red-200 */
+            --color-late-border: 248 113 113; /* red-400 */
+            --color-pending: 229 231 235; /* gray-200 */
+            --color-pending-border: 209 213 219; /* gray-300 */
+
+            /* Cores do app (Claro) */
+            --color-bg: 249 250 251; /* gray-50 */
+            --color-card: 255 255 255; /* white */
+            --color-text: 17 24 39; /* gray-900 */
+            --color-text-muted: 107 114 128; /* gray-500 */
+            --color-primary: 22 163 74; /* green-600 */
+            --color-primary-hover: 21 128 61; /* green-700 */
+        }
+
+        .dark {
+            /* Cores de status (Escuro) */
+            --color-paid: 34 197 94; /* green-500 */
+            --color-paid-border: 74 222 128; /* green-400 */
+            --color-late: 239 68 68; /* red-500 */
+            --color-late-border: 248 113 113; /* red-400 */
+            --color-pending: 55 65 81; /* gray-700 */
+            --color-pending-border: 75 85 99; /* gray-600 */
+
+            /* Cores do app (Escuro - baseado na sua sugestão) */
+            --color-bg: 18 18 18; /* #121212 */
+            --color-card: 30 30 30; /* #1e1e1e */
+            --color-text: 224 224 224; /* #e0e0e0 */
+            --color-text-muted: 156 163 175; /* gray-400 */
+            --color-primary: 130 199 132; /* #81C784 (aproximado) */
+            --color-primary-hover: 165 214 167; /* green-300 */
+        }
+        
+        /* Aplica as variáveis CSS */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: rgb(var(--color-bg));
+            color: rgb(var(--color-text));
+            transition: background-color 0.3s, color 0.3s;
+        }
+
+        .card {
+            background-color: rgb(var(--color-card));
+            border-left-width: 4px;
+            transition: background-color 0.3s;
+        }
+        
+        /* Classes de Status */
+        .status-pago {
+            background-color: rgba(var(--color-paid), 0.3);
+            border-color: rgb(var(--color-paid-border));
+        }
+        .status-atrasada {
+            background-color: rgba(var(--color-late), 0.3);
+            border-color: rgb(var(--color-late-border));
+        }
+        .status-pendente {
+            background-color: rgba(var(--color-pending), 0.3);
+            border-color: rgb(var(--color-pending-border));
+        }
+        
+        /* Modal */
+        .modal-backdrop {
+            background-color: rgba(0, 0, 0, 0.5);
+            transition: opacity 0.3s;
+        }
+
+        .modal-content {
+            background-color: rgb(var(--color-card));
+            transform: translateY(20px);
+            transition: transform 0.3s, opacity 0.3s;
+        }
+
+        .modal-container.hidden .modal-backdrop {
+            opacity: 0;
+        }
+        .modal-container.hidden .modal-content {
+            opacity: 0;
+            transform: translateY(20px);
+        }
+
+        /* Botão Flutuante (FAB) */
+        .fab {
+            background-color: rgb(var(--color-primary));
+            color: white;
+            transition: background-color 0.3s, transform 0.2s;
+        }
+        .fab:hover {
+            background-color: rgb(var(--color-primary-hover));
+            transform: scale(1.05);
+        }
+        
+        /* Inputs */
+        input[type="text"], input[type="number"], input[type="date"], input[type="checkbox"] {
+            background-color: rgb(var(--color-bg));
+            border-color: rgb(var(--color-pending-border));
+            color: rgb(var(--color-text));
+        }
+        input[type="checkbox"]:checked {
+            background-color: rgb(var(--color-primary));
+            border-color: rgb(var(--color-primary));
+        }
+        
+        /* Botões */
+        .btn-primary {
+            background-color: rgb(var(--color-primary));
+            color: white;
+        }
+        .btn-primary:hover {
+            background-color: rgb(var(--color-primary-hover));
+        }
+        .btn-secondary {
+            background-color: rgb(var(--color-pending));
+            color: rgb(var(--color-text));
+        }
+        .btn-secondary:hover {
+            background-color: rgb(var(--color-pending-border));
+        }
+        .btn-danger {
+            background-color: rgb(239 68 68); /* red-500 */
+            color: white;
+        }
+        .btn-danger:hover {
+            background-color: rgb(220 38 38); /* red-600 */
+        }
+
+    </style>
+</head>
+<body class="antialiased">
+
+    <!-- Container Principal do App -->
+    <div id="app-container" class="max-w-md mx-auto h-screen flex flex-col shadow-lg">
+
+        <!-- 1. Cabeçalho Fixo -->
+        <header class="sticky top-0 z-10 p-4 card shadow-sm border-b border-transparent dark:border-gray-700">
+            <div class="flex justify-between items-center">
+                <h1 class="text-xl font-bold" style="color: rgb(var(--color-primary));">Paguei!</h1>
+                <button id="theme-toggle" class="text-2xl">🌙</button>
+            </div>
+            <div class="flex justify-between items-center mt-4">
+                <button id="prev-month" class="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
+                </button>
+                <h2 id="current-month-display" class="text-lg font-semibold capitalize"></h2>
+                <button id="next-month" class="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+                </button>
+            </div>
+        </header>
+
+        <!-- 2. Lista de Despesas -->
+        <main id="expense-list-container" class="flex-1 overflow-y-auto p-4 space-y-3">
+            <!-- Despesas serão injetadas aqui -->
+            <div id="empty-state" class="hidden text-center p-10">
+                <svg class="w-16 h-16 mx-auto" style="color: rgb(var(--color-text-muted));" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                <p class="mt-4 font-medium" style="color: rgb(var(--color-text-muted));">Nenhuma despesa para este mês.</p>
+                <p class="text-sm" style="color: rgb(var(--color-text-muted));">Clique no '+' para adicionar uma.</p>
+            </div>
+        </main>
+
+        <!-- 3. Rodapé Fixo com Totais -->
+        <footer class="sticky bottom-0 z-10 p-4 card shadow-inner border-t border-transparent dark:border-gray-700">
+            <div class="flex justify-between items-center text-sm mb-2">
+                <span style="color: rgb(var(--color-text-muted));">Total do Mês:</span>
+                <span id="total-mes" class="font-bold">R$ 0,00</span>
+            </div>
+            <div class="flex justify-between items-center text-lg">
+                <span class="font-semibold">Saldo a Pagar:</span>
+                <span id="saldo-a-pagar" class="font-bold text-red-500">R$ 0,00</span>
+            </div>
+        </footer>
+
+        <!-- 4. Botão Flutuante (FAB) -->
+        <button id="add-expense-btn" class="fab fixed z-20 bottom-24 right-8 w-16 h-16 rounded-full flex items-center justify-center text-4xl font-light shadow-lg">
+            +
+        </button>
+    </div>
+
+    <!-- 5. Modal de Adicionar/Editar Despesa -->
+    <div id="form-modal" class="modal-container fixed inset-0 z-30 flex items-center justify-center p-4 hidden">
+        <!-- Backdrop -->
+        <div class="modal-backdrop fixed inset-0" onclick="closeModal('form-modal')"></div>
+        
+        <!-- Conteúdo -->
+        <div class="modal-content w-full max-w-md p-6 rounded-lg shadow-xl z-40">
+            <h3 id="form-title" class="text-xl font-semibold mb-4">Nova Despesa</h3>
+            <form id="expense-form">
+                <input type="hidden" id="expense-id">
+                
+                <div class="mb-4">
+                    <label for="nome" class="block text-sm font-medium mb-1" style="color: rgb(var(--color-text-muted));">Nome</label>
+                    <input type="text" id="nome" class="w-full p-2 rounded border" required>
+                </div>
+                
+                <div class="flex gap-4 mb-4">
+                    <div class="flex-1">
+                        <label for="valor" class="block text-sm font-medium mb-1" style="color: rgb(var(--color-text-muted));">Valor (R$)</label>
+                        <input type="number" id="valor" step="0.01" min="0.01" class="w-full p-2 rounded border" required>
+                    </div>
+                    <div class="flex-1">
+                        <label for="dataVencimento" class="block text-sm font-medium mb-1" style="color: rgb(var(--color-text-muted));">Vencimento</label>
+                        <input type="date" id="dataVencimento" class="w-full p-2 rounded border" required>
+                    </div>
+                </div>
+
+                <div class="mb-4">
+                    <label for="icone" class="block text-sm font-medium mb-1" style="color: rgb(var(--color-text-muted));">Ícone (Emoji)</label>
+                    <input type="text" id="icone" placeholder="🏠" class="w-full p-2 rounded border">
+                </div>
+
+                <div class="mb-6">
+                    <label class="flex items-center space-x-2 cursor-pointer">
+                        <input type="checkbox" id="recorrente" class="rounded">
+                        <span>🔁 Despesa recorrente</span>
+                    </label>
+                </div>
+
+                <div class="flex justify-between items-center">
+                    <button id="delete-expense-btn" type="button" class="btn-danger p-2 px-4 rounded-md font-medium hidden">
+                        🗑 Excluir
+                    </button>
+                    <div class="flex gap-2">
+                        <button type="button" class="btn-secondary p-2 px-4 rounded-md font-medium" onclick="closeModal('form-modal')">
+                            Cancelar
+                        </button>
+                        <button type="submit" class="btn-primary p-2 px-4 rounded-md font-medium">
+                            Salvar
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <!-- 6. Modal de Ações da Despesa -->
+    <div id="action-modal" class="modal-container fixed inset-0 z-30 flex items-end justify-center p-4 hidden">
+        <!-- Backdrop -->
+        <div class="modal-backdrop fixed inset-0" onclick="closeModal('action-modal')"></div>
+        
+        <!-- Conteúdo (Bottom Sheet) -->
+        <div class="modal-content w-full max-w-md p-4 rounded-t-lg shadow-xl z-40 space-y-2">
+            <input type="hidden" id="action-expense-id">
+            <button id="toggle-paid-btn" class="w-full text-left p-3 rounded-md font-medium btn-primary">
+                ✅ Marcar como Paga
+            </button>
+            <button id="edit-expense-btn" class="w-full text-left p-3 rounded-md font-medium btn-secondary">
+                ✏️ Editar Despesa
+            </button>
+            <button id="delete-action-btn" class="w-full text-left p-3 rounded-md font-medium btn-danger">
+                🗑 Excluir Despesa
+            </button>
+            <button type="button" class="w-full text-center p-3 mt-2 rounded-md font-medium" onclick="closeModal('action-modal')">
+                Cancelar
+            </button>
+        </div>
+    </div>
+
+    <!-- 7. Modal de Alerta de Vencimento -->
+    <div id="alert-modal" class="modal-container fixed inset-0 z-50 flex items-center justify-center p-4 hidden">
+        <!-- Backdrop -->
+        <div class="modal-backdrop fixed inset-0" onclick="closeModal('alert-modal')"></div>
+        
+        <!-- Conteúdo -->
+        <div class="modal-content w-full max-w-sm p-6 rounded-lg shadow-xl z-40 text-center">
+            <div class="text-5xl mb-4">🔔</div>
+            <h3 class="text-xl font-semibold mb-2">Atenção!</h3>
+            <p id="alert-message" style="color: rgb(var(--color-text-muted));">Você tem contas vencendo amanhã!</p>
+            <button type="button" class="btn-primary w-full mt-6 p-2 px-4 rounded-md font-medium" onclick="closeModal('alert-modal')">
+                Entendido
+            </button>
+        </div>
+    </div>
+
+
+    <script>
+        // ----------------------------------------------------
+        // LÓGICA DO APLICATIVO "PAGUEI!"
+        // ----------------------------------------------------
+        
+        document.addEventListener('DOMContentLoaded', () => {
+
+            // --- Seletores DOM ---
+            const expenseListContainer = document.getElementById('expense-list-container');
+            const emptyState = document.getElementById('empty-state');
+            const prevMonthBtn = document.getElementById('prev-month');
+            const nextMonthBtn = document.getElementById('next-month');
+            const currentMonthDisplay = document.getElementById('current-month-display');
+            const totalMesEl = document.getElementById('total-mes');
+            const saldoAPagarEl = document.getElementById('saldo-a-pagar');
+            const addExpenseBtn = document.getElementById('add-expense-btn');
+            
+            // Elementos do Modal de Formulário
+            const formModal = document.getElementById('form-modal');
+            const expenseForm = document.getElementById('expense-form');
+            const formTitle = document.getElementById('form-title');
+            const expenseIdInput = document.getElementById('expense-id');
+            const nomeInput = document.getElementById('nome');
+            const valorInput = document.getElementById('valor');
+            const dataVencimentoInput = document.getElementById('dataVencimento');
+            const iconeInput = document.getElementById('icone');
+            const recorrenteInput = document.getElementById('recorrente');
+            const deleteExpenseBtn = document.getElementById('delete-expense-btn');
+
+            // Elementos do Modal de Ação
+            const actionModal = document.getElementById('action-modal');
+            const actionExpenseIdInput = document.getElementById('action-expense-id');
+            const togglePaidBtn = document.getElementById('toggle-paid-btn');
+            const editExpenseBtn = document.getElementById('edit-expense-btn');
+            const deleteActionBtn = document.getElementById('delete-action-btn');
+
+            // Elementos do Modal de Alerta
+            const alertModal = document.getElementById('alert-modal');
+            const alertMessage = document.getElementById('alert-message');
+
+            // Tema (Modo Claro/Escuro)
+            const themeToggle = document.getElementById('theme-toggle');
+
+            // --- Estado do Aplicativo ---
+            let allExpenses = [];
+            let currentDisplayDate = new Date();
+            let audioReady = false;
+            let synth;
+
+            // --- Formatação ---
+            const currencyFormatter = new Intl.NumberFormat('pt-BR', {
+                style: 'currency',
+                currency: 'BRL',
+            });
+            
+            const dateFormatter = new Intl.DateTimeFormat('pt-BR', {
+                day: '2-digit',
+                month: '2-digit',
+                year: 'numeric',
+            });
+
+            // --- Funções Principais ---
+
+            /** Inicializa o app: carrega dados, tema, e renderiza a tela */
+            function initApp() {
+                loadExpenses();
+                initTheme();
+                renderApp();
+                // O alerta só é verificado após uma interação do usuário para habilitar o áudio
+                
+                // Habilita o áudio em qualquer clique inicial
+                document.body.addEventListener('click', initAudio, { once: true });
+            }
+
+            /** Habilita o contexto de áudio (Tone.js) */
+            async function initAudio() {
+                if (audioReady) return;
+                try {
+                    await Tone.start();
+                    synth = new Tone.Synth().toDestination();
+                    audioReady = true;
+                    console.log('Contexto de áudio pronto.');
+                    checkAlerts(); // Agora podemos verificar os alertas
+                } catch (error) {
+                    console.error('Erro ao iniciar o áudio:', error);
+                }
+            }
+            
+            /** Renderiza a tela principal (lista e totais) para o mês atual */
+            function renderApp() {
+                // PRIMEIRO: Verificamos e criamos despesas recorrentes
+                checkAndCreateRecurrentExpenses();
+                
+                // Atualiza o display do mês/ano
+                currentMonthDisplay.textContent = currentDisplayDate.toLocaleString('pt-BR', {
+                    month: 'long',
+                    year: 'numeric'
+                });
+                
+                // Filtra despesas para o mês e ano exibidos
+                const currentYear = currentDisplayDate.getFullYear();
+                const currentMonth = currentDisplayDate.getMonth();
+                
+                const expensesForMonth = allExpenses.filter(expense => {
+                    const expenseDate = new Date(parseISODate(expense.dataVencimento));
+                    return expenseDate.getFullYear() === currentYear && expenseDate.getMonth() === currentMonth;
+                });
+
+                renderExpenseList(expensesForMonth);
+                updateTotals(expensesForMonth);
+            }
+
+            /** Renderiza a lista de despesas */
+            function renderExpenseList(expenses) {
+                // Limpa a lista
+                expenseListContainer.innerHTML = '';
+                
+                if (expenses.length === 0) {
+                    emptyState.classList.remove('hidden');
+                    expenseListContainer.appendChild(emptyState);
+                    return;
+                }
+                
+                emptyState.classList.add('hidden');
+
+                // Ordena: atrasadas > pendentes > pagas
+                expenses.sort((a, b) => {
+                    const statusA = getStatus(a);
+                    const statusB = getStatus(b);
+                    const dateA = new Date(parseISODate(a.dataVencimento));
+                    const dateB = new Date(parseISODate(b.dataVencimento));
+
+                    if (statusA === statusB) return dateA - dateB; // Ordena por data
+                    if (statusA === 'atrasada') return -1;
+                    if (statusB === 'atrasada') return 1;
+                    if (statusA === 'pendente') return -1;
+                    if (statusB === 'pendente') return 1;
+                    return 1; // Pagas por último
+                });
+
+                expenses.forEach(expense => {
+                    const status = getStatus(expense);
+                    const card = document.createElement('div');
+                    card.className = `card p-4 rounded-lg shadow-sm flex items-center justify-between cursor-pointer status-${status}`;
+                    card.dataset.id = expense.id;
+                    
+                    const statusText = {
+                        pago: 'Pago',
+                        atrasada: 'Atrasada',
+                        pendente: 'Pendente'
+                    }[status];
+                    
+                    const statusTextColorClass = {
+                        pago: 'text-green-600 dark:text-green-400',
+                        atrasada: 'text-red-600 dark:text-red-400',
+                        pendente: 'text-gray-600 dark:text-gray-400'
+                    }[status];
+
+                    card.innerHTML = `
+                        <div class="flex items-center space-x-3">
+                            <span class="text-2xl">${expense.icone || '💸'}</span>
+                            <div>
+                                <p class="font-semibold">${expense.nome}</p>
+                                <p class="text-sm" style="color: rgb(var(--color-text-muted));">
+                                    Vence: ${dateFormatter.format(new Date(parseISODate(expense.dataVencimento)))}
+                                </p>
+                            </div>
+                        </div>
+                        <div class="text-right">
+                            <p class="font-bold text-lg">${currencyFormatter.format(expense.valor)}</p>
+                            <p class="text-sm font-medium ${statusTextColorClass}">${statusText}</p>
+                        </div>
+                    `;
+                    
+                    // Adiciona evento de clique para abrir o modal de ações
+                    card.addEventListener('click', () => openActionModal(expense.id));
+                    
+                    expenseListContainer.appendChild(card);
+                });
+            }
+
+            /** Atualiza os totais no rodapé */
+            function updateTotals(expenses) {
+                const totalMes = expenses.reduce((sum, item) => sum + item.valor, 0);
+                const saldoAPagar = expenses
+                    .filter(item => !item.pago)
+                    .reduce((sum, item) => sum + item.valor, 0);
+                
+                totalMesEl.textContent = currencyFormatter.format(totalMes);
+                saldoAPagarEl.textContent = currencyFormatter.format(saldoAPagar);
+                
+                // Muda a cor do saldo a pagar se for 0
+                if (saldoAPagar === 0) {
+                    saldoAPagarEl.classList.remove('text-red-500');
+                    saldoAPagarEl.classList.add('text-green-600', 'dark:text-green-400');
+                } else {
+                    saldoAPagarEl.classList.add('text-red-500');
+                    saldoAPagarEl.classList.remove('text-green-600', 'dark:text-green-400');
+                }
+            }
+
+            /** Retorna o status ('pago', 'atrasada', 'pendente') de uma despesa */
+            function getStatus(expense) {
+                if (expense.pago) {
+                    return 'pago';
+                }
+                const today = new Date().setHours(0, 0, 0, 0);
+                const dueDate = new Date(parseISODate(expense.dataVencimento)).setHours(0, 0, 0, 0);
+                
+                if (dueDate < today) {
+                    return 'atrasada';
+                }
+                return 'pendente';
+            }
+
+            /** Corrige data ISO (input[type=date] não inclui timezone) */
+            function parseISODate(dateString) {
+                // Input type="date" retorna "YYYY-MM-DD". 
+                // new Date("YYYY-MM-DD") pode ter problemas de timezone (interpreta como UTC).
+                // "YYYY-MM-DDTHH:MM:SS" é interpretado como local.
+                return `${dateString}T00:00:00`;
+            }
+
+            /**
+             * Verifica as despesas recorrentes do mês anterior
+             * e as clona para o mês atual (currentDisplayDate) se ainda não existirem.
+             */
+            function checkAndCreateRecurrentExpenses() {
+                const currentYear = currentDisplayDate.getFullYear();
+                const currentMonth = currentDisplayDate.getMonth();
+                
+                // Calcula o mês anterior
+                const prevDisplayDate = new Date(currentDisplayDate);
+                prevDisplayDate.setDate(1); // Garante que estamos no início do mês
+                prevDisplayDate.setMonth(prevDisplayDate.getMonth() - 1);
+                
+                const prevYear = prevDisplayDate.getFullYear();
+                const prevMonth = prevDisplayDate.getMonth();
+
+                // 1. Encontra todas as despesas recorrentes do mês anterior
+                const recurrentExpensesFromPrevMonth = allExpenses.filter(expense => {
+                    if (!expense.recorrente) return false;
+                    const expenseDate = new Date(parseISODate(expense.dataVencimento));
+                    return expenseDate.getFullYear() === prevYear && expenseDate.getMonth() === prevMonth;
+                });
+                
+                let expensesAdded = false;
+
+                // 2. Para cada uma, cria a do mês atual se não existir
+                recurrentExpensesFromPrevMonth.forEach(prevExpense => {
+                    const originalDate = new Date(parseISODate(prevExpense.dataVencimento));
+                    const originalDay = originalDate.getDate();
+
+                    // Cria a data do próximo mês com o dia original
+                    const nextExpenseDate = new Date(currentYear, currentMonth, originalDay);
+                    
+                    // Se o dia original (ex: 31) não existe no mês atual (ex: Fev), 
+                    // o JS pula para o mês seguinte (Março). Precisamos corrigir isso.
+                    if (nextExpenseDate.getMonth() !== currentMonth) {
+                        // Isso significa que o dia não existe (ex: 31/02).
+                        // Vamos para o último dia do mês atual (Fevereiro).
+                        // new Date(currentYear, currentMonth + 1, 0) nos dá o último dia do currentMonth
+                        nextExpenseDate.setDate(new Date(currentYear, currentMonth + 1, 0).getDate());
+                    }
+
+                    const nextDueDateString = nextExpenseDate.toISOString().split('T')[0];
+
+                    // 3. Verifica se já existe uma despesa com mesmo nome e data
+                    const alreadyExists = allExpenses.some(item => 
+                        item.nome === prevExpense.nome && 
+                        item.dataVencimento === nextDueDateString
+                    );
+                    
+                    if (!alreadyExists) {
+                        const nextExpense = {
+                            ...prevExpense,
+                            id: crypto.randomUUID(),
+                            dataVencimento: nextDueDateString,
+                            pago: false,
+                            recorrente: true // Mantém a recorrência
+                        };
+                        allExpenses.push(nextExpense);
+                        expensesAdded = true;
+                        console.log('Despesa recorrente clonada para este mês:', nextExpense.nome);
+                    }
+                });
+
+                // 4. Se adicionamos novas despesas, salva
+                if (expensesAdded) {
+                    saveExpenses();
+                }
+            }
+
+            // --- Funções de Manipulação de Dados (CRUD) ---
+
+            /** Carrega despesas do LocalStorage */
+            function loadExpenses() {
+                allExpenses = JSON.parse(localStorage.getItem('paguei_expenses')) || [];
+            }
+            
+            /** Salva despesas no LocalStorage */
+            function saveExpenses() {
+                localStorage.setItem('paguei_expenses', JSON.stringify(allExpenses));
+            }
+
+            /** Lida com o submit do formulário (Adicionar/Editar) */
+            function handleFormSubmit(e) {
+                e.preventDefault();
+                
+                const id = expenseIdInput.value;
+                const expenseData = {
+                    id: id || crypto.randomUUID(),
+                    nome: nomeInput.value,
+                    valor: parseFloat(valorInput.value),
+                    dataVencimento: dataVencimentoInput.value, // YYYY-MM-DD
+                    icone: iconeInput.value || '💸',
+                    recorrente: recorrenteInput.checked,
+                    pago: id ? allExpenses.find(item => item.id === id).pago : false // Mantém status de pago ao editar
+                };
+                
+                let isNew = true;
+                if (id) {
+                    // Editando
+                    isNew = false;
+                    const index = allExpenses.findIndex(item => item.id === id);
+                    if (index > -1) {
+                        allExpenses[index] = expenseData;
+                    }
+                } else {
+                    // Adicionando
+                    allExpenses.push(expenseData);
+                }
+
+                // Lógica de Recorrência (REMOVIDA DAQUI)
+                /*
+                if (expenseData.recorrente) {
+                    createNextRecurrentExpense(expenseData);
+                }
+                */
+
+                saveExpenses();
+                renderApp();
+                closeModal('form-modal');
+            }
+
+            /** Deleta uma despesa (do formulário) */
+            function handleDelete() {
+                const id = expenseIdInput.value;
+                allExpenses = allExpenses.filter(item => item.id !== id);
+                saveExpenses();
+                renderApp();
+                closeModal('form-modal');
+                closeModal('action-modal');
+            }
+
+            /** Deleta uma despesa (do modal de ação) */
+            function handleDeleteAction() {
+                const id = actionExpenseIdInput.value;
+                allExpenses = allExpenses.filter(item => item.id !== id);
+                saveExpenses();
+                renderApp();
+                closeModal('action-modal');
+            }
+
+            /** Alterna o status de pagamento */
+            function handleTogglePaid() {
+                const id = actionExpenseIdInput.value;
+                const expense = allExpenses.find(item => item.id === id);
+                if (expense) {
+                    expense.pago = !expense.pago;
+                    
+                    // Se marcar como pago e for recorrente, cria a do próximo mês (REMOVIDA DAQUI)
+                    /*
+                    if (expense.pago && expense.recorrente) {
+                        createNextRecurrentExpense(expense);
+                    }
+                    */
+                }
+                saveExpenses();
+                renderApp();
+                closeModal('action-modal');
+            }
+
+            /** Abre o formulário para edição (do modal de ação) */
+            function handleEdit() {
+                const id = actionExpenseIdInput.value;
+                const expense = allExpenses.find(item => item.id === id);
+                if (expense) {
+                    openFormModal(expense);
+                }
+                closeModal('action-modal');
+            }
+            
+            /** Cria a despesa recorrente do próximo mês, se não existir (FUNÇÃO REMOVIDA) */
+            /*
+            function createNextRecurrentExpense(expense) {
+                const nextDueDate = new Date(parseISODate(expense.dataVencimento));
+                nextDueDate.setMonth(nextDueDate.getMonth() + 1);
+                
+                // Formata para YYYY-MM-DD
+                const nextDueDateString = nextDueDate.toISOString().split('T')[0];
+                
+                // Verifica se já existe uma despesa com mesmo nome e data
+                const alreadyExists = allExpenses.some(item => 
+                    item.nome === expense.nome && 
+                    item.dataVencimento === nextDueDateString
+                );
+                
+                if (!alreadyExists) {
+                    const nextExpense = {
+                        ...expense,
+                        id: crypto.randomUUID(),
+                        dataVencimento: nextDueDateString,
+                        pago: false,
+                        recorrente: true // A nova despesa também é recorrente
+                    };
+                    allExpenses.push(nextExpense);
+                    console.log('Despesa recorrente criada para o próximo mês:', nextExpense.nome);
+                }
+            }
+            */
+
+            // --- Funções de Navegação e Modais ---
+
+            /** Muda o mês de exibição */
+            function changeMonth(direction) {
+                currentDisplayDate.setMonth(currentDisplayDate.getMonth() + direction);
+                // Define o dia como 1 para evitar problemas ao pular meses (ex: 31 Jan -> 2 Mar)
+                currentDisplayDate.setDate(1); 
+                renderApp();
+            }
+
+            /** Abre o modal de formulário (adicionar ou editar) */
+            function openFormModal(expense = null) {
+                expenseForm.reset();
+                if (expense) {
+                    // Editando
+                    formTitle.textContent = 'Editar Despesa';
+                    expenseIdInput.value = expense.id;
+                    nomeInput.value = expense.nome;
+                    valorInput.value = expense.valor;
+                    dataVencimentoInput.value = expense.dataVencimento;
+                    iconeInput.value = expense.icone;
+                    recorrenteInput.checked = expense.recorrente;
+                    deleteExpenseBtn.classList.remove('hidden');
+                } else {
+                    // Adicionando
+                    formTitle.textContent = 'Nova Despesa';
+                    expenseIdInput.value = '';
+                    dataVencimentoInput.value = new Date().toISOString().split('T')[0]; // Padrão para hoje
+                    deleteExpenseBtn.classList.add('hidden');
+                }
+                formModal.classList.remove('hidden');
+            }
+            
+            /** Abre o modal de ações para uma despesa */
+            function openActionModal(id) {
+                const expense = allExpenses.find(item => item.id === id);
+                if (!expense) return;
+                
+                actionExpenseIdInput.value = id;
+                
+                if (expense.pago) {
+                    togglePaidBtn.textContent = '🟠 Marcar como Pendente';
+                    togglePaidBtn.classList.remove('btn-primary');
+                    togglePaidBtn.classList.add('btn-secondary'); // Usar um estilo diferente
+                } else {
+                    togglePaidBtn.textContent = '✅ Marcar como Paga';
+                    togglePaidBtn.classList.add('btn-primary');
+                    togglePaidBtn.classList.remove('btn-secondary');
+                }
+                
+                actionModal.classList.remove('hidden');
+            }
+
+            /** Fecha um modal pelo ID */
+            window.closeModal = (modalId) => {
+                document.getElementById(modalId).classList.add('hidden');
+            }
+
+            // --- Funções de Tema (Modo Escuro) ---
+
+            /** Inicializa o tema com base no LocalStorage */
+            function initTheme() {
+                const savedTheme = localStorage.getItem('paguei_theme');
+                if (savedTheme === 'dark' || (!savedTheme && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+                    document.documentElement.classList.add('dark');
+                    themeToggle.textContent = '☀️';
+                } else {
+                    document.documentElement.classList.remove('dark');
+                    themeToggle.textContent = '🌙';
+                }
+            }
+            
+            /** Alterna o tema */
+            function toggleTheme() {
+                const isDark = document.documentElement.classList.toggle('dark');
+                if (isDark) {
+                    themeToggle.textContent = '☀️';
+                    localStorage.setItem('paguei_theme', 'dark');
+                } else {
+                    themeToggle.textContent = '🌙';
+                    localStorage.setItem('paguei_theme', 'light');
+                }
+            }
+            
+            // --- Sistema de Alertas ---
+            
+            /** Verifica despesas vencendo amanhã e exibe alerta */
+            function checkAlerts() {
+                if (!audioReady) {
+                    console.log('Contexto de áudio não iniciado. Alertas sonoros desativados até a interação.');
+                    return; // Não faz nada se o áudio não foi iniciado pelo usuário
+                }
+
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+                
+                const tomorrow = new Date(today);
+                tomorrow.setDate(today.getDate() + 1);
+                
+                const expensesDueTomorrow = allExpenses.filter(expense => {
+                    if (expense.pago) return false;
+                    const dueDate = new Date(parseISODate(expense.dataVencimento)).setHours(0, 0, 0, 0);
+                    return dueDate === tomorrow.getTime();
+                });
+
+                if (expensesDueTomorrow.length > 0) {
+                    const count = expensesDueTomorrow.length;
+                    const message = `Você tem ${count} ${count > 1 ? 'contas' : 'conta'} que ${count > 1 ? 'vencem' : 'vence'} amanhã!`;
+                    alertMessage.textContent = message;
+                    alertModal.classList.remove('hidden');
+                    
+                    // Toca o som
+                    playAlertSound();
+                }
+            }
+            
+            /** Toca um som de alerta simples */
+            function playAlertSound() {
+                if (synth && audioReady) {
+                    try {
+                        // Um som simples de notificação
+                        synth.triggerAttackRelease("E5", "8n", Tone.now());
+                        synth.triggerAttackRelease("G5", "8n", Tone.now() + 0.15);
+                    } catch (error) {
+                        console.error('Erro ao tocar o som:', error);
+                    }
+                }
+            }
+
+
+            // --- Event Listeners ---
+            prevMonthBtn.addEventListener('click', () => changeMonth(-1));
+            nextMonthBtn.addEventListener('click', () => changeMonth(1));
+            addExpenseBtn.addEventListener('click', () => openFormModal(null));
+            themeToggle.addEventListener('click', toggleTheme);
+            expenseForm.addEventListener('submit', handleFormSubmit);
+            deleteExpenseBtn.addEventListener('click', handleDelete);
+            
+            // Listeners do Modal de Ação
+            togglePaidBtn.addEventListener('click', handleTogglePaid);
+            editExpenseBtn.addEventListener('click', handleEdit);
+            deleteActionBtn.addEventListener('click', handleDeleteAction);
+
+            // --- Inicia o App ---
+            initApp();
+
+        });
+    </script>
+
+</body>
+</html>
